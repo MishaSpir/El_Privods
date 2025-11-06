@@ -1,47 +1,93 @@
-#include <libopencm3/stm32/rcc.h>
-#include <libopencm3/stm32/gpio.h>
-#include <libopencm3/stm32/dac.h>
-#include <libopencm3/stm32/timer.h>
-#include <math.h>
+# include <libopencm3/stm32/rcc.h> //rcc.h - reset and clock control
+# include <libopencm3/stm32/gpio.h> //inputs outputs
+# include <libopencm3/stm32/timer.h>
+# include <libopencm3/cm3/nvic.h>
 
-// Задержка (простая реализация)
-void delay(void) {
-    for (volatile int i = 0; i < 100000; i++);
-    __asm__("nop");
-}
+int16_t turn;
+// uint16_t degrees;
 
-int main(void) {
-    // Настройка тактирования
-    rcc_clock_setup_pll(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
-    
-    // Включение тактирования для порта A и DAC
-    rcc_periph_clock_enable(RCC_GPIOA);
-    rcc_periph_clock_enable(RCC_DAC);
-    
-    // Настройка вывода PA4 (DAC_OUT1) как аналоговый
-    gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO4);
-    
-    // Включение DAC канала 1
-    dac_disable(DAC1,DAC_CHANNEL1);
-    dac_enable(DAC1,DAC_CHANNEL1);
-    int value = 0;
-    // Основной цикл
-    while (1) {
-    // Спадающее напряжение
-         for (uint16_t value = 4095; value > 0; value -= 5) {
-            dac_load_data_buffer_single(DAC1,value, DAC_ALIGN_RIGHT12, DAC_CHANNEL1);
-            delay();
-        }
+int main() {
+    rcc_periph_clock_enable(RCC_GPIOD);
+    gpio_mode_setup(GPIOD, GPIO_MODE_OUTPUT,GPIO_PUPD_NONE ,GPIO15|GPIO14|GPIO13|GPIO12);
+    rcc_periph_clock_enable(RCC_TIM6);
+    timer_set_prescaler(TIM6,160-1);
+    timer_set_period(TIM6,200-1);
+    timer_enable_counter(TIM6);
+    timer_enable_irq(TIM6,TIM_DIER_UIE);//разрешение прерывания по update
+    nvic_enable_irq(NVIC_TIM6_DAC_IRQ);//разерешили прохождения запросов в ЦПУ
 
-        // Нарастающее напряжение
-        for (uint16_t value = 0; value < 4095; value += 5) {
-            dac_load_data_buffer_single(DAC1,value, DAC_ALIGN_RIGHT12, DAC_CHANNEL1);
-            delay();
-        }
+  
 
+    turn = (4096/8);
 
+    while(true){
 
     }
+
+  
+
+}
+
+  
+
+uint8_t led_num = 0b00000001;
+
+//функция-обработчик прерывания
+void tim6_dac_isr(){
+    if(turn>0){
+        timer_clear_flag(TIM6,TIM_SR_UIF);  
+            if(led_num >=16){led_num = 0b00000001;}
+
+        switch(led_num){
+            case 0b00000001:  
+                gpio_set(GPIOD,GPIO15);
+                gpio_clear(GPIOD,GPIO14);
+                gpio_clear(GPIOD,GPIO13);
+                gpio_clear(GPIOD,GPIO12);
+            break;
+            case 0b00000010:
+                gpio_clear(GPIOD,GPIO15);
+                gpio_set(GPIOD,GPIO14);
+                gpio_clear(GPIOD,GPIO13);
+                gpio_clear(GPIOD,GPIO12);
+
+            break;
+            case 0b00000100:
+                gpio_clear(GPIOD,GPIO15);
+                gpio_clear(GPIOD,GPIO14);
+                gpio_set(GPIOD,GPIO13);
+                gpio_clear(GPIOD,GPIO12);
+
+            break;
+            case 0b00001000:
+                gpio_clear(GPIOD,GPIO15);
+                gpio_clear(GPIOD,GPIO14);
+                gpio_clear(GPIOD,GPIO13);
+                gpio_set(GPIOD,GPIO12);
+
+            break;
+        }
+        turn--;
+
+      
+      
     
-    return 0;
+// if(led_num == 1){
+
+// gpio_set(GPIOD,GPIO15);
+
+// }else{
+
+// gpio_clear(GPIOD,GPIO15);
+
+// }
+
+led_num *=2;
+    }else{
+gpio_clear(GPIOD,GPIO15);
+gpio_clear(GPIOD,GPIO14);
+gpio_clear(GPIOD,GPIO13);
+gpio_clear(GPIOD,GPIO12);
+    }
+    
 }
